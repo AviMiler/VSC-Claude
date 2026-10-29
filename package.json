@@ -1,0 +1,384 @@
+{
+  "name": "claude-local",
+  "publisher": "local",
+  "displayName": "Claude Code Local",
+  "description": "Claude Code בתוך VS Code, בעברית, מול שרת מודל מקומי.",
+  "version": "0.1.0",
+  "license": "UNLICENSED",
+  "private": true,
+  "engines": {
+    "vscode": "^1.94.0"
+  },
+  "categories": [
+    "AI",
+    "Chat"
+  ],
+  "icon": "resources/claude-logo.png",
+  "main": "./extension.js",
+  "activationEvents": [
+    "onStartupFinished",
+    "onWebviewPanel:claudeLocalPanel"
+  ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": false
+    }
+  },
+  "scripts": {
+    "test": "node --test"
+  },
+  "contributes": {
+    "configuration": {
+      "title": "Claude Code Local",
+      "properties": {
+        "claudeLocal.claudePath": {
+          "type": "string",
+          "default": "claude",
+          "markdownDescription": "קובץ ההפעלה של Claude Code. ברירת המחדל `claude` נמצא ב-PATH. קובץ `.cmd` או `.bat` מופעל דרך `cmd.exe`."
+        },
+        "claudeLocal.environmentVariables": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "value": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "name",
+              "value"
+            ]
+          },
+          "markdownDescription": "משתני סביבה לתהליך של Claude, למשל `ANTHROPIC_BASE_URL` של שרת המודל המקומי."
+        },
+        "claudeLocal.useTerminal": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "הפעלת Claude בטרמינל המשולב במקום בחלון השיחה."
+        },
+        "claudeLocal.allowDangerouslySkipPermissions": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "מציג את המצב \"ללא הרשאות\" בבורר המצבים. Claude יפעל בלי לבקש אישור."
+        },
+        "claudeLocal.claudeProcessWrapper": {
+          "type": "string",
+          "markdownDescription": "קובץ הפעלה עוטף. הוא מקבל את נתיב Claude ואת הארגומנטים שלו כארגומנטים."
+        },
+        "claudeLocal.respectGitIgnore": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "קבצים שמופיעים ב-`.gitignore` לא נכללים בחיפוש ובהקשר."
+        },
+        "claudeLocal.initialPermissionMode": {
+          "type": "string",
+          "enum": [
+            "default",
+            "manual",
+            "acceptEdits",
+            "plan",
+            "bypassPermissions"
+          ],
+          "markdownDescription": "מצב ההרשאות בתחילת שיחה. נקרא מהגדרות המשתמש בלבד. `manual` שקול ל-`default`."
+        },
+        "claudeLocal.disableLoginPrompt": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "אין בתוסף הזה מסך כניסה. ההגדרה קיימת כדי שהגדרות שהועתקו מהתוסף הרשמי לא יציגו אזהרה."
+        },
+        "claudeLocal.autosave": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "שמירת קובץ פתוח לפני ש-Claude קורא אותו או כותב אליו."
+        },
+        "claudeLocal.focusView": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "פתיחת שיחות כשהשורות של הכלים מוסתרות."
+        },
+        "claudeLocal.useCtrlEnterToSend": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "שליחה ב-Ctrl+Enter. אז Enter מוסיף שורה חדשה."
+        },
+        "claudeLocal.preferredLocation": {
+          "type": "string",
+          "enum": [
+            "sidebar",
+            "panel"
+          ],
+          "default": "panel",
+          "markdownDescription": "איפה נפתחת שיחה כשאין אף שיחה פתוחה: בסרגל הצד או בלשונית עורך."
+        },
+        "claudeLocal.lockEditorGroups": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "נעילת קבוצת העורכים של Claude, כדי שקבצים ש-Claude פותח ייפתחו בקבוצה אחרת."
+        },
+        "claudeLocal.enableNewConversationShortcut": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Ctrl+N פותח שיחה חדשה כשהמיקוד בשיחה."
+        },
+        "claudeLocal.enableReopenClosedSessionShortcut": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Ctrl+Shift+T פותח מחדש את השיחה האחרונה שנסגרה."
+        },
+        "claudeLocal.hideOnboarding": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "הסתרת רשימת הצעדים הראשונים בשיחה ריקה."
+        },
+        "claudeLocal.attachOpenFile": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "צירוף הקובץ הפתוח כהקשר לכל הודעה."
+        },
+        "claudeLocal.attachSelection": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "צירוף הקוד המסומן כהקשר להודעה."
+        },
+        "claudeLocal.continueAfterReload": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "המשך תור שרץ כשהחלון נטען מחדש."
+        },
+        "claudeLocal.scrollToBottomOnSend": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "גלילה לסוף השיחה בשליחת הודעה."
+        },
+        "claudeLocal.showMessageTimestamps": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "הצגת השעה מתחת לכל הודעה."
+        },
+        "claudeLocal.spinnerVerbs": {
+          "type": "object",
+          "default": {
+            "mode": "append",
+            "verbs": []
+          },
+          "properties": {
+            "mode": {
+              "type": "string",
+              "enum": [
+                "append",
+                "replace"
+              ]
+            },
+            "verbs": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "markdownDescription": "הפעלים שמוצגים בזמן ש-Claude עובד. `append` מוסיף לרשימה הקיימת, `replace` מחליף אותה."
+        },
+        "claudeLocal.archiveInactiveSessions": {
+          "type": "number",
+          "enum": [
+            0,
+            1,
+            2,
+            7,
+            14
+          ],
+          "default": 14,
+          "markdownDescription": "העברה לארכיון של שיחות שלא היו פעילות מספר ימים. 0 מבטל."
+        },
+        "claudeLocal.usePythonEnvironment": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "הפעלת סביבת ה-Python של סביבת העבודה. עדיין לא נתמך."
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "claude-local.editor.open",
+        "title": "פתיחה בלשונית חדשה (Open in New Tab)",
+        "category": "Claude Code Local",
+        "icon": "resources/claude-logo.svg"
+      },
+      {
+        "command": "claude-local.editor.openLast",
+        "title": "פתיחה (Open)",
+        "category": "Claude Code Local",
+        "icon": "resources/claude-logo.svg"
+      },
+      {
+        "command": "claude-local.primaryEditor.open",
+        "title": "פתיחה בעורך הראשי (Open in Primary Editor)",
+        "category": "Claude Code Local"
+      },
+      {
+        "command": "claude-local.window.open",
+        "title": "פתיחה בחלון חדש (Open in New Window)",
+        "category": "Claude Code Local"
+      },
+      {
+        "command": "claude-local.sidebar.open",
+        "title": "פתיחה בסרגל הצד (Open in Side Bar)",
+        "category": "Claude Code Local"
+      },
+      {
+        "command": "claude-local.newConversation",
+        "title": "שיחה חדשה (New Conversation)",
+        "category": "Claude Code Local"
+      },
+      {
+        "command": "claude-local.reopenClosedSession",
+        "title": "פתיחה מחדש של שיחה שנסגרה (Reopen Closed Session)",
+        "category": "Claude Code Local"
+      },
+      {
+        "command": "claude-local.focus",
+        "title": "מיקוד בתיבת הקלט (Focus input)",
+        "category": "Claude Code Local"
+      },
+      {
+        "command": "claude-local.blur",
+        "title": "יציאה מתיבת הקלט (Blur input)",
+        "category": "Claude Code Local"
+      },
+      {
+        "command": "claude-local.focusLastMessage",
+        "title": "מיקוד בהודעה האחרונה (Focus last message)",
+        "category": "Claude Code Local"
+      },
+      {
+        "command": "claude-local.toggleFocusView",
+        "title": "הצגה או הסתרה של הכלים (Toggle Focus view)",
+        "category": "Claude Code Local"
+      },
+      {
+        "command": "claude-local.renameSessionTab",
+        "title": "שינוי שם הלשונית (Rename Session Tab)",
+        "category": "Claude Code Local"
+      },
+      {
+        "command": "claude-local.showLogs",
+        "title": "הצגת יומן (Show Logs)",
+        "category": "Claude Code Local"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "claude-local.editor.open",
+        "key": "ctrl+shift+escape",
+        "mac": "cmd+shift+escape",
+        "when": "!config.claudeLocal.useTerminal"
+      },
+      {
+        "command": "claude-local.newConversation",
+        "key": "ctrl+n",
+        "mac": "cmd+n",
+        "when": "config.claudeLocal.enableNewConversationShortcut && (activeWebviewPanelId == 'claudeLocalPanel' || (claude-local.sideBarActive && !editorFocus && !panelFocus))"
+      },
+      {
+        "command": "claude-local.reopenClosedSession",
+        "key": "ctrl+shift+t",
+        "mac": "cmd+shift+t",
+        "when": "config.claudeLocal.enableReopenClosedSessionShortcut && claude-local.lastClosedWasSession"
+      },
+      {
+        "command": "claude-local.focus",
+        "key": "ctrl+escape",
+        "mac": "cmd+escape",
+        "when": "!config.claudeLocal.useTerminal && editorTextFocus"
+      },
+      {
+        "command": "claude-local.blur",
+        "key": "ctrl+escape",
+        "mac": "cmd+escape",
+        "when": "!config.claudeLocal.useTerminal && !editorTextFocus"
+      },
+      {
+        "command": "claude-local.toggleFocusView",
+        "key": "ctrl+alt+f",
+        "mac": "cmd+alt+f",
+        "when": "activeWebviewPanelId == 'claudeLocalPanel' || claude-local.sideBarActive"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "claude-local-sidebar",
+          "title": "Claude Code Local",
+          "icon": "resources/claude-logo.svg"
+        }
+      ],
+      "secondarySidebar": [
+        {
+          "id": "claude-local-sidebar-secondary",
+          "title": "Claude Code Local",
+          "icon": "resources/claude-logo.svg"
+        }
+      ]
+    },
+    "views": {
+      "claude-local-sidebar": [
+        {
+          "type": "webview",
+          "id": "claudeLocalSidebar",
+          "name": "Claude Code Local",
+          "when": "claude-local:doesNotSupportSecondarySidebar"
+        }
+      ],
+      "claude-local-sidebar-secondary": [
+        {
+          "type": "webview",
+          "id": "claudeLocalSidebarSecondary",
+          "name": "Claude Code Local",
+          "when": "!claude-local:doesNotSupportSecondarySidebar"
+        }
+      ]
+    },
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "claude-local.editor.openLast",
+          "when": "false"
+        },
+        {
+          "command": "claude-local.newConversation",
+          "when": "false"
+        },
+        {
+          "command": "claude-local.blur",
+          "when": "false"
+        },
+        {
+          "command": "claude-local.focusLastMessage",
+          "when": "!config.claudeLocal.useTerminal"
+        },
+        {
+          "command": "claude-local.renameSessionTab",
+          "when": "activeWebviewPanelId == 'claudeLocalPanel'"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "claude-local.editor.openLast",
+          "group": "navigation",
+          "when": "!config.claudeLocal.useTerminal && activeWebviewPanelId != 'claudeLocalPanel'"
+        }
+      ],
+      "webview/context": [
+        {
+          "command": "claude-local.renameSessionTab",
+          "when": "webviewId == 'claudeLocalPanel'"
+        }
+      ]
+    }
+  }
+}

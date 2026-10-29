@@ -13,16 +13,17 @@ Requirements the user confirmed as permanent. Each new permanent feature gets a 
 - `engines.vscode`: `^1.94.0` (the same as the official extension). Secondary-sidebar placement needs a newer VS Code; older versions fall back to the activity bar (see "Opening & placement").
 - The CLI is not bundled (the official extension bundles a private one). It comes from `claudeLocal.claudePath` (default `claude`, resolved on PATH; a `.cmd`/`.bat` is run through `cmd.exe /d /s /c`). Target CLI: 2.1.246 or newer.
 - `capabilities.untrustedWorkspaces.supported: false` (as in the official manifest): the extension does not run in Restricted Mode.
-- Install without a marketplace: `scripts/package.ps1` zips the folder into `claude-local-<version>.vsix` (`extension.vsixmanifest`, `[Content_Types].xml`, `extension/…`) for "Install from VSIX…", or the folder is copied to `%USERPROFILE%\.vscode\extensions\local.claude-local-<version>`.
+- Install by copying the folder (user decision, 2026-10-29: "a folder I copy to the extensions folder and that's it"): the repo folder is the extension as is. It is copied to `%USERPROFILE%\.vscode\extensions\local.claude-local-<version>` and VS Code is restarted. No VSIX, no packaging script. If VS Code does not pick the folder up, "Developer: Install Extension from Location…" on the same folder installs it.
 - Code is separated by feature: a folder per topic under `src/` and `webview/`, no cross-feature spaghetti (code-standards rule 1).
 - Known limits: VS Code is not installed on the machine the spec was written on; everything that needs the Extension Host is verified on a machine that has it.
-- Code (planned): `package.json`, `extension.js`, `scripts/package.ps1`.
+- As built (M1): `package.json`, `extension.js`.
 
 ## Manifest & package layout (mirrors the official extension)
 - `package.json`: `name: claude-local`, `publisher: local`, `displayName: "Claude Code Local"`, `main: ./extension.js`, `categories: ["AI", "Chat"]`, `icon: resources/claude-logo.png`.
 - `activationEvents`: `onStartupFinished`, `onWebviewPanel:claudeLocalPanel` (the official uses `onStartupFinished` and `onWebviewPanel:claudeVSCodePanel`).
 - Naming: the official `claude-vscode.*` / `claude-code.*` command ids become `claude-local.*`; `claudeCode.*` settings become `claudeLocal.*`; `claudeVSCode*` view ids become `claudeLocal*`; context keys `claude-vscode.*` become `claude-local.*`. Nothing collides with the official extension when both are installed.
 - Declared `contributes` keys, as in the official manifest: `configuration`, `commands`, `keybindings`, `viewsContainers`, `views`, `walkthroughs`, `menus`. The official `jsonValidation` is left out (see "Out of scope").
+- A command, view or menu entry is declared in `package.json` only in the milestone that implements it, so the palette never shows a command without a handler. M1 declares all 24 settings, the 13 M1 commands, the two chat view containers and their views; the sessions container, the walkthrough and the M2–M4 commands come with their milestones.
 - `extension.js` only wires features: `activate(context)` calls each feature's `register(context, services)` and `deactivate()` disposes them. Shared services: the logger (OutputChannel), settings reader, session registry.
 - Planned tree:
   - `extension.js`
@@ -35,11 +36,10 @@ Requirements the user confirmed as permanent. Each new permanent feature gets a 
   - `src/terminal/` — terminal mode
   - `src/util/` — logger, settings, nonce, paths
   - `webview/chat/`, `webview/sessions/`, `webview/shared/` — HTML, JS (ES modules in the webview) and CSS
-  - `resources/` — `claude-logo.svg`, `claude-logo.png`, `walkthrough/step1.md`–`step4.md`
+  - `resources/` — `claude-logo.svg`, `claude-logo-pending.svg`, `claude-logo-done.svg`, `claude-logo.png`, `walkthrough/step1.md`–`step4.md`
   - `dev/fake-claude.js` + `dev/fake-claude.cmd` — a fake stream-json CLI
-  - `test/` — `node --test` units for the pure modules
-  - `scripts/package.ps1`
-- Code (planned): `package.json`, `extension.js`.
+  - `test/` — `node --test` units for the pure modules, plus host tests against `test/vscode-stub.js`
+- As built (M1): `package.json`, `extension.js`.
 
 ## Opening & placement
 The official extension opens in five places: a view in the secondary sidebar (or the activity bar on older VS Code), an editor tab, a new window, the integrated terminal, and a sessions list in the activity bar. This copies all five (user decision, 2026-10-29: scope "Opening & placement").
@@ -81,9 +81,13 @@ The official extension opens in five places: a view in the secondary sidebar (or
 - `preferredLocation` (`sidebar` | `panel`, default `panel`): where `focus` opens a conversation when none is open — the sidebar view or an editor tab.
 - `lockEditorGroups` (default true): a group Claude opens tabs in is locked (`workbench.action.lockEditorGroup`) so files Claude opens land in another group.
 - Closing a tab kills its process and remembers its session id for `reopenClosedSession` (a stack of the last 10).
+- A new tab opens in the group of the last Claude tab, else beside the active editor, else in the active group. Files Claude opens (`openFile`) go to the last text editor's group when it has no Claude tab, else group 1 (group 2 when group 1 holds Claude).
+- `blur` returns to the last text editor (`showTextDocument` on its column), else `workbench.action.focusActiveEditorGroup`.
+- The sidebar conversation survives the view being closed and reopened (the host replays the thread). Its `{sessionId, mode, model, running, title}` is kept in `workspaceState` key `claudeLocal.sidebarSession` and resumed after a reload.
+- M1 status: built. `markSessionUnread` and `addSessionTabToGroup` move to M4 (they act on the sessions list); `terminal.open`, `insertAtMentioned` and `openWalkthrough` come with their sections (M4, M4, M2). The status bar opens `editor.openLast` until terminal mode exists.
 - Known limits: the official "Open in New Window" opens a real auxiliary window; ours moves the panel with VS Code's own command, which needs VS Code ≥ 1.85 aux windows.
-- Not verified: everything (no code yet).
-- Code (planned): `src/panels/` (`panel-registry.js`, `chat-panel.js`, `sidebar-view.js`, `commands.js`, `status-bar.js`), `package.json` `contributes`.
+- Not verified: the first VS Code version that shows `viewsContainers.secondarySidebar` is assumed to be 1.106 (`src/panels/sidebar-view.js`). Below it, the activity-bar view is used. Nothing has run in a real Extension Host yet; the host code is exercised against `test/vscode-stub.js`.
+- As built (M1): `src/panels/` (`panel-registry.js`, `chat-panel.js`, `sidebar-view.js`, `commands.js`, `status-bar.js`), `package.json` `contributes`.
 
 ## Claude Code process & protocol
 One long-lived CLI process per conversation, spoken to over stdin/stdout with stream-json and the control protocol, as claude-gui does (and as the official extension does internally).
@@ -91,32 +95,40 @@ One long-lived CLI process per conversation, spoken to over stdin/stdout with st
 - `cwd`: the first workspace folder (the folder of the active file's workspace when there are several). No folder open: the user's home folder, and the composer shows "לא נפתחה תיקייה – Claude עובד בתיקיית הבית".
 - Environment: `process.env` + the `claudeLocal.environmentVariables` array (`[{name, value}]`, as the official) + `CLAUDE_CODE_ENTRYPOINT=claude-local-vscode`.
 - `claudeProcessWrapper`: when set, the wrapper executable is spawned with the CLI path and its arguments as its own arguments.
-- Control requests sent: `initialize` (60 s timeout; declares the in-process MCP server, see "IDE tools"), `interrupt`, `set_permission_mode`, `set_model`. Received: `can_use_tool` (permission cards and the native diff), `mcp_message` (the in-process MCP server). An unknown incoming request is answered with an error response; an outgoing one the CLI rejects is logged and the UI keeps its previous state.
+- Control requests sent: `initialize` (60 s timeout; declares the in-process MCP server from M2, see "IDE tools"), `interrupt`, `set_permission_mode`, `set_model`, `set_max_thinking_tokens` (the thinking switch: `null` on, `0` off). Received: `can_use_tool` (permission cards and the native diff), `mcp_message` (the in-process MCP server, M2), `control_cancel_request` (removes the card). An unknown incoming request is answered with an error response; an outgoing one the CLI rejects is logged and the UI keeps its previous state.
+- Permission modes: the extension's names are `default`, `acceptEdits`, `plan`, `bypassPermissions`. CLI 2.1.312 lists `manual` (not `default`) in `--permission-mode` choices, so `default` is passed as `manual` when the help lists only `manual`; `initialize` still reports `current_permission_mode: "default"`, and `set_permission_mode` takes the extension's names. With `allowDangerouslySkipPermissions` on, `--allow-dangerously-skip-permissions` is added (when the help lists it) so a live switch to `bypassPermissions` works.
+- A process start that finishes after its conversation was reset or closed is dropped (no orphan process).
 - Stop: pending permissions are denied with "Interrupted by the user", `interrupt` is sent, a process still alive after 6 s is killed (`taskkill /T /F` on Windows).
 - Failures add a Hebrew error to the conversation: spawn failure ("לא ניתן להפעיל את Claude (…). בדוק את ההגדרה claudeLocal.claudePath."), unknown option ("גרסת Claude Code לא מכירה אחד הדגלים שהתוסף שלח."), else exit code + the last 3000 characters of stderr.
 - Every line in and out is logged at debug level to the OutputChannel (`showLogs`), with message contents cut to 500 characters.
 - Process lifetime: killed when its panel or view is disposed or the extension deactivates.
-- Not verified: everything.
-- Code (planned): `src/cli/` (`spawn.js`, `args.js`, `capabilities.js`, `process.js` with `send`/`request`/`respond`/`kill`).
+- Verified against the real CLI 2.1.312 (2026-10-29, probe in a scratch folder): the spawn line above, `initialize` (response has `commands[{name, description, argumentHint}]`, `models[{value, displayName, description}]`, `claude_code_version`), a `can_use_tool` for `Write` (`{tool_name, display_name, input, description, permission_suggestions, tool_use_id}`) answered with `{behavior: allow, updatedInput}`, `set_permission_mode` (→ `{mode}`), `set_model` (→ `{model}`), `set_max_thinking_tokens` (→ success), an unknown subtype (→ `error: "Unsupported control request subtype: …"`). Not verified: Windows `.cmd` spawning and `taskkill` (no Windows here), `control_cancel_request`.
+- As built (M1): `src/cli/` (`spawn.js`, `args.js`, `capabilities.js`, `process.js` with `send`/`request`/`respond`/`respondError`/`sendUser`/`stop`/`kill`), `src/util/` (`logger.js`, `settings.js`, `nonce.js`, `paths.js`).
 
 ## Chat webview
 The conversation UI in every tab and in the sidebar view (user decision, 2026-10-29: same constraints → Hebrew RTL).
 - One HTML shell for all chat surfaces (`webview/chat/index.html`), `dir="rtl" lang="he"`, colors from VS Code's theme variables (`--vscode-editor-background`, `--vscode-foreground`, `--vscode-button-*`, …) so it follows light, dark and high-contrast themes. Code, paths and commands are LTR islands.
-- Security: CSP `default-src 'none'; img-src ${webview.cspSource} data: blob:; style-src ${webview.cspSource}; script-src 'nonce-<random>'; font-src ${webview.cspSource}`; `localResourceRoots` = `webview/` and `resources/` only; `enableScripts: true`, `retainContextWhenHidden: true` (a hidden tab keeps streaming).
+- Security: CSP `default-src 'none'; img-src ${webview.cspSource} data: blob:; style-src ${webview.cspSource}; script-src 'nonce-<random>' ${webview.cspSource}; font-src ${webview.cspSource}` (`cspSource` in `script-src` lets the entry module import the other local modules); `localResourceRoots` = `webview/` and `resources/` only; `enableScripts: true`, `retainContextWhenHidden: true` (a hidden tab keeps streaming).
 - Host ↔ webview messages (`postMessage`, every message `{type, ...}`):
 
   | Direction | type | Payload |
   |---|---|---|
   | webview → host | `ready` | — (host replies with `init`) |
-  | host → webview | `init` | `{settings, session, items, capabilities, modes, models}` |
+  | host → webview | `init` | `{settings, session, items, capabilities, modes, models, commands, running, status, permissions}` — `items` are the thread ops so far, `permissions` the waiting cards |
+  | host → webview | `update` | any of `{settings, modes, models, commands, capabilities}` (after `initialize`, on a settings change) |
+  | host → webview | `session` | `{sessionId, mode, model, title}` (the webview saves it with `setState` for the serializer) |
+  | host → webview | `state` | `{running, status}` |
+  | host → webview | `permissionResolved` | `{requestId}` (answered, interrupted or cancelled) |
+  | webview → host | `newConversation` / `showLogs` | — (header buttons) |
+  | webview → host | `focusChanged` | `{focused}` (drives `claude-local.sideBarActive`) |
   | webview → host | `send` | `{text, attachments[], mentions[]}` |
   | webview → host | `interrupt` | — |
   | webview → host | `setMode` / `setModel` / `setThinking` | `{value}` |
   | webview → host | `permissionAnswer` | `{requestId, behavior: allow\|deny, scope?, message?}` |
   | webview → host | `mentionQuery` | `{query}` → host replies `mentionResults {items[]}` |
   | webview → host | `openFile` | `{path, line?}` |
-  | host → webview | `event` | one translated stream event (text delta, tool start/result, thinking, status, result) |
-  | host → webview | `permission` | `{requestId, tool, input, kind: card\|diff}` |
+  | host → webview | `event` | `{ops[]}` thread ops from `src/panels/event-translator.js`: `user`, `text`/`thinking` (`append` or `set`), `tool` (input arrives with the complete assistant message), `toolResult`, `result`, `notice` |
+  | host → webview | `permission` | `{requestId, tool, displayName, description, input, canAlways, kind: card\|diff}` |
   | host → webview | `context` | `{file, selection: {start, end, lines}}` |
   | host → webview | `insertText` | `{text}` (Alt+K) |
   | host → webview | `focus` / `focusLastMessage` / `toggleFocusView` | — |
@@ -125,13 +137,15 @@ The conversation UI in every tab and in the sidebar view (user decision, 2026-10
 - Permission cards for every `can_use_tool` that is not a diff (see "Native diff review"): the tool, its input, buttons "אישור", "אישור תמיד בפרויקט הזה" (when the CLI sent `permission_suggestions`), "דחייה" with an optional reason. `AskUserQuestion` shows its options; `ExitPlanMode` shows the plan (Markdown) with "אישור התוכנית" / "המשך תכנון".
 - Composer: Enter sends, Shift+Enter is a new line; with `useCtrlEnterToSend` Ctrl+Enter sends and Enter is a new line. Pasted images become attachments (base64 image blocks). The footer shows the mode selector, the model picker, the thinking switch, the context line ("N שורות נבחרו" / the open file name) and the stop button while running.
 - Mode selector: "ידני" (`default`), "עריכה אוטומטית" (`acceptEdits`), "תכנון" (`plan`), and "ללא הרשאות" (`bypassPermissions`) only when `allowDangerouslySkipPermissions` is on. The start mode is `initialPermissionMode` (read from user settings only, as the official; `manual` is an alias of `default`); a live change sends `set_permission_mode`.
-- Model picker: the models from the `initialize` response, else the env's `ANTHROPIC_DEFAULT_*_MODEL` values, else free text; a change sends `set_model`.
+- Model picker: the models from the `initialize` response, else free text; a change sends `set_model`. (The planned fallback to the env's `ANTHROPIC_DEFAULT_*_MODEL` values is not built: the real CLI always returns `models`.)
 - `/` menu: the slash commands the CLI listed in `initialize`, filtered as you type; picking one inserts it.
 - `scrollToBottomOnSend`, `showMessageTimestamps` (time under each message), `spinnerVerbs` (`{mode: append|replace, verbs[]}`; default Hebrew verbs "חושב", "בודק", "כותב"…), `focusView` (start with tool rows hidden).
 - Reload: panels are restored with a `WebviewPanelSerializer` for `claudeLocalPanel` from their saved `{sessionId, mode, model}`; the process restarts with `--resume`. With `continueAfterReload` a turn that was running when the window closed is continued by sending "המשך מהנקודה שבה עצרת." once.
+- Markdown is rendered by a small escaping renderer (`webview/chat/markdown.js`): paragraphs, headings, lists, quotes, tables, code blocks with a copy button, inline code, bold, italic, strike; links show their text and URL (no navigation). User text and the input box are `dir="auto"`.
+- M1 status: built. The context line ("N שורות נבחרו") comes with "Editor context" (M2), the onboarding checklist with M4. A restored tab resumes the session in the CLI but shows only "השיחה נפתחה מחדש…": the old messages are shown once transcripts are read (M4).
 - Known limits: no `/btw`, bookmarks, agent map, prompt-cache clock, LaTeX or voice (official features left out of V1).
-- Not verified: everything.
-- Code (planned): `src/panels/` (`webview-html.js`, `message-router.js`, `serializer.js`, `event-translator.js`), `webview/chat/` (`index.html`, `app.js`, `thread.js`, `composer.js`, `cards.js`, `chat.css`).
+- Verified: the webview rendered in Chromium with stub messages (RTL thread, tool rows, cards, `/` menu, sending); the host side against `test/vscode-stub.js` and `dev/fake-claude.js`. Not verified: inside a real VS Code webview.
+- As built (M1): `src/panels/` (`conversation.js`, `webview-html.js`, `event-translator.js`, `permissions.js`, `serializer.js`), `webview/chat/` (`app.js`, `thread.js`, `composer.js`, `cards.js`, `markdown.js`, `chat.css`). The HTML shell is generated by `webview-html.js` (there is no `index.html`), and message routing lives in `conversation.js` (no separate `message-router.js`).
 
 ## Editor context
 What the user is looking at reaches Claude without copying (user decision, 2026-10-29: scope "Editor context").
@@ -230,7 +244,8 @@ All 23 official settings, renamed to `claudeLocal.*`, plus `claudePath` (user de
 | `claudeLocal.usePythonEnvironment` | boolean, true | deferred | activating the workspace Python env needs the Python extension's API |
 
 - Changes apply live (`onDidChangeConfiguration`): webview settings are pushed with `init`-style updates; process settings (`claudePath`, `environmentVariables`, `claudeProcessWrapper`) apply to the next process start, and the chat says "ההגדרה תחול בשיחה הבאה".
-- Code (planned): `package.json` `contributes.configuration`, `src/util/settings.js`.
+- M1 status: all 24 settings are declared and read; the ones whose feature comes later (`useTerminal`, `respectGitIgnore`, `autosave`, `attachOpenFile`, `attachSelection`, `hideOnboarding`, `archiveInactiveSessions`, `usePythonEnvironment`) have no effect yet.
+- As built (M1): `package.json` `contributes.configuration`, `src/util/settings.js`.
 
 ## Walkthrough & onboarding
 - `contributes.walkthroughs`: id `claude-local-walkthrough`, title "תחילת עבודה עם Claude Code Local", four steps mirroring the official: `welcome` ("שותף הקוד שלך", `resources/walkthrough/step1.md`), `open-claude` ("פתיחת Claude", `step2.md`, completionEvents `onCommand:claude-local.sidebar.open`, `onCommand:claude-local.editor.open`), `chat` ("שיחה עם Claude", `step3.md`), `sessions` ("שיחות קודמות", `step4.md`). Media files are local Markdown with local images.
@@ -248,14 +263,14 @@ All 23 official settings, renamed to `claudeLocal.*`, plus `claudePath` (user de
 - Each official command, view, setting and menu entry is either mapped in a section above or listed here.
 
 ## Build order
-- M1: manifest, `extension.js`, CLI process, chat webview, opening & placement (tab, sidebar, status bar, focus/blur), logs, settings read.
+- M1 (built 2026-10-29): manifest, `extension.js`, CLI process, chat webview, opening & placement (tab, sidebar, status bar, focus/blur), logs, settings read.
 - M2: editor context (open file, selection, Alt+K, @-mentions, autosave) and the in-process MCP tools.
 - M3: native diff review.
 - M4: sessions list, archive and groups, walkthrough, terminal mode, then the IDE WebSocket server.
 - Each milestone goes through the enforcing-coding-workflow stages and updates its sections here from "planned" to "as built".
 
 ## Testing
-- `dev/fake-claude.js` (+ `.cmd`): a fake stream-json CLI that answers `initialize`, streams a reply, asks `can_use_tool` for an `Edit`, sends `mcp_message`, and honours `interrupt`; selected with `claudeLocal.claudePath`.
-- Pure modules have `node --test` units: Myers diff, proposed content, transcript reading, WebSocket frames, args building.
+- `dev/fake-claude.js` (+ `.cmd`): a fake stream-json CLI that answers `--version`, `--help` and `initialize`, streams a reply, asks `can_use_tool` for a `Write` ("write"/"כתוב" in the message) or an `AskUserQuestion` ("ask"/"שאל"), and honours `interrupt`, `set_permission_mode`, `set_model`; selected with `claudeLocal.claudePath`. `mcp_message` is added in M2.
+- `npm test` (= `node --test`) runs every file in `test/`. Pure modules have units: args building, help parsing, command building, event translation, permission responses (later: Myers diff, proposed content, transcript reading, WebSocket frames). `test/extension.test.js` activates the extension against `test/vscode-stub.js` and runs tab and sidebar conversations with the fake CLI.
 - Extension behaviour is checked by hand in the Extension Development Host (`code --extensionDevelopmentPath=<repo>`), against the fake CLI and then the real CLI with the Ollama model server. A checklist per milestone lives in AGENT_CONTEXT.md.
 - Before M2 and M4 the real CLI's `mcp_message` and `ide` WebSocket messages are captured (debug log of the CLI) and the "Not verified" bullets above are resolved.

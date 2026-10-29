@@ -19,3 +19,7 @@
 ## [2026-10-29] V1 covers all four parts of the official extension (user decision)
 **Decision:** V1 includes opening & placement, editor context (including the IDE MCP tools), native diff review, and settings with the sessions list. Built in milestones M1–M4 (spec.md "Build order").
 **Alternatives considered:** A smaller first version with only some of these parts.
+
+## [2026-10-29] Install by copying the folder, no VSIX (user decision)
+**Decision:** The repo folder is the extension. The user copies it into VS Code's extensions folder (`%USERPROFILE%\.vscode\extensions\local.claude-local-<version>`) and restarts VS Code. `scripts/package.ps1` and the VSIX are dropped.
+**Alternatives considered:** Building a `.vsix` with a PowerShell script for "Install from VSIX…" (the earlier plan).
