@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="{{csp}}">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="{{base}}/chat/chat.css">
+  <title>Claude</title>
+</head>
+<body>
+  <main class="app">
+    <div id="thread" class="thread" role="log" aria-live="polite">
+      <div id="onboarding"></div>
+    </div>
+    <footer id="composer" class="composer">
+      <div id="slash-menu" class="menu" role="listbox" hidden></div>
+      <div id="attachments" class="attachments" hidden></div>
+      <textarea id="input" rows="2" aria-label="הודעה ל-Claude"></textarea>
+      <div class="composer-footer">
+        <select id="mode" aria-label="מצב הרשאות"></select>
+        <input id="model" list="models" placeholder="מודל" aria-label="מודל" dir="ltr">
+        <datalist id="models"></datalist>
+        <label class="switch"><input type="checkbox" id="thinking"> חשיבה</label>
+        <button id="context-chip" class="chip context" type="button" title="לחיצה מסירה את ההקשר מההודעה הבאה" hidden></button>
+        <span class="spacer"></span>
+        <button id="stop" class="secondary" type="button" hidden>עצירה</button>
+        <button id="send" class="primary" type="button">שליחה</button>
+      </div>
+      <div id="no-folder" class="hint" hidden>לא נפתחה תיקייה – Claude עובד בתיקיית הבית</div>
+    </footer>
+  </main>
+  <script type="module" nonce="{{nonce}}" src="{{base}}/chat/app.js"></script>
+</body>
+</html>
