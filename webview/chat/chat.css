@@ -179,7 +179,8 @@ button:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-off
 }
 .menu-item { display: flex; gap: 8px; padding: 3px 8px; cursor: pointer; align-items: baseline; }
 .menu-item.active { background: var(--vscode-list-activeSelectionBackground); color: var(--vscode-list-activeSelectionForeground); }
-.menu-name { font-family: var(--vscode-editor-font-family); }
+.menu-name { font-family: var(--vscode-editor-font-family); unicode-bidi: plaintext; }
+.menu-icon { flex: none; }
 .menu-hint, .menu-description { color: var(--muted); font-size: 0.9em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .menu-item.active .menu-hint, .menu-item.active .menu-description { color: inherit; }
 

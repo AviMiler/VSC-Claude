@@ -8,7 +8,8 @@ const { openChatPanel } = require('./chat-panel');
 const WALKTHROUGH_ID = 'local.claude-local#claude-local-walkthrough';
 
 /**
- * @param {object} services shared services; `services.sidebar()` returns the sidebar provider in use
+ * @param {object} services shared services; `services.sidebar()` returns the sidebar provider in use; this adds
+ *   `services.revealConversation()`
  * @returns {vscode.Disposable[]}
  */
 function registerPanelCommands(services) {
@@ -33,6 +34,9 @@ function registerPanelCommands(services) {
     if (settings.get('preferredLocation') === 'sidebar') return services.sidebar().reveal();
     return openTab();
   };
+
+  // Other features (Alt+K) reach the composer of the conversation used last.
+  services.revealConversation = revealLastOrOpen;
 
   const postToLast = async type => {
     const entry = await revealLastOrOpen();

@@ -8,7 +8,7 @@ const NOT_YET = 'התכונה הזאת עוד לא נבנתה בגרסה הזא�
 
 const PENDING_COMMANDS = [
   'claude-local.terminal.open', 'claude-local.terminal.open.keyboard',
-  'claude-local.insertAtMention', 'claude-local.insertAtMentioned',
+  'claude-local.insertAtMentioned',
   'claude-local.addSessionTabToGroup',
   'claude-local.acceptProposedDiff', 'claude-local.rejectProposedDiff',
   'claude-local.acceptProposedHunk', 'claude-local.rejectProposedHunk',

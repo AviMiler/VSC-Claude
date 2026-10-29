@@ -18,8 +18,9 @@ const TITLE_CHARS = 40;
 const LOG_LIMIT = 2000;
 const INITIALIZE_TIMEOUT_MS = 60000;
 const THINKING_TOKENS = 31999;
+const QUEUED_UNTIL_READY = new Set(['insertText', 'focus', 'focusLastMessage', 'toggleFocusView', 'context']);
 const ONBOARDING_KEY = 'claudeLocal.onboardingDismissed';
-const CONTINUE_TEXT ='המשך מהנקודה שבה עצרת.';
+const CONTINUE_TEXT = 'המשך מהנקודה שבה עצרת.';
 const MODE_LABELS = { default: 'ידני', acceptEdits: 'עריכה אוטומטית', plan: 'תכנון', bypassPermissions: 'ללא הרשאות' };
 const MODEL_ENV_KEYS = ['ANTHROPIC_DEFAULT_OPUS_MODEL', 'ANTHROPIC_DEFAULT_SONNET_MODEL', 'ANTHROPIC_DEFAULT_HAIKU_MODEL', 'ANTHROPIC_MODEL'];
 
@@ -83,6 +84,8 @@ class Conversation {
     this.capabilities = null;
     this.proc = null;
     this.webview = null;
+    this.ready = false; // the webview sent `ready`
+    this.queued = [];
     this.disposed = false;
     this.changeEmitter = new vscode.EventEmitter();
     /** Fires on any change the registry shows (title, pending permission, running, unread). */
@@ -97,9 +100,17 @@ class Conversation {
     this.webview = webview;
   }
 
-  /** @param {object} message */
+  /**
+   * Messages that `init` does not cover wait until the webview is ready (Alt+K right after opening a chat).
+   * @param {object} message
+   */
   post(message) {
-    if (this.webview && !this.disposed) this.webview.postMessage(message);
+    if (!this.webview || this.disposed) return;
+    if (!this.ready) {
+      if (QUEUED_UNTIL_READY.has(message.type)) this.queued.push(message);
+      return;
+    }
+    this.webview.postMessage(message);
   }
 
   /** @param {object} event a UI event; kept for replay (deltas are not: the complete block that follows replaces them) */
@@ -124,6 +135,7 @@ class Conversation {
 
   /** The webview loaded (`ready`): send everything it needs, then start the process so models and commands load. */
   handleReady() {
+    this.ready = true;
     this.post({
       type: 'init',
       settings: webviewSettingsFor(this.services),
@@ -135,6 +147,7 @@ class Conversation {
       commands: this.catalog.commands,
       pending: [...this.pending.values()].map(prompt => this.permissionMessage(prompt)),
     });
+    this.queued.splice(0).forEach(message => this.post(message));
     this.ensureProcess().then(() => {
       if (!this.continueOnStart) return;
       this.continueOnStart = false;

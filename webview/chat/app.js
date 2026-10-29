@@ -6,6 +6,7 @@ import { createThread } from './thread.js';
 import { createCards } from './cards.js';
 import { createComposer } from './composer.js';
 import { createOnboarding } from './onboarding.js';
+import { createMentionMenu } from './mention-menu.js';
 
 // eslint-disable-next-line no-undef
 const vscode = acquireVsCodeApi();
@@ -32,8 +33,13 @@ const onboarding = createOnboarding(document.getElementById('onboarding'), {
 
 let settings = {};
 
-/** Plug-in point for other webview features (the @-mention menu): message type -> handler. */
-const extraHandlers = new Map();
+const mentionMenu = createMentionMenu(composer, post);
+
+/** The chip text: "N שורות נבחרו", or the open file's name. */
+function contextChipText(message) {
+  if (message.selection) return message.selection.lines === 1 ? 'שורה אחת נבחרה' : `${message.selection.lines} שורות נבחרו`;
+  return message.file ? message.file.split('/').pop() : null;
+}
 
 function applySettings(value) {
   settings = value || {};
@@ -81,12 +87,14 @@ const handlers = {
   focus: () => composer.focus(),
   focusLastMessage: () => thread.focusLastMessage(),
   toggleFocusView: () => thread.toggleFocusView(),
+  context: message => composer.setContextChip(contextChipText(message)),
+  mentionResults: message => mentionMenu.showResults(message),
 };
 
 window.addEventListener('message', event => {
   const message = event.data;
   if (!message || typeof message.type !== 'string') return;
-  const handler = handlers[message.type] || extraHandlers.get(message.type);
+  const handler = handlers[message.type];
   if (handler) handler(message);
 });
 

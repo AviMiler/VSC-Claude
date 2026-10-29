@@ -5,6 +5,8 @@ const vscode = require('vscode');
 const { createLogger } = require('./src/util/logger');
 const { PanelRegistry } = require('./src/panels/panel-registry');
 const panels = require('./src/panels');
+const editorContext = require('./src/context');
+const mcp = require('./src/mcp');
 const placeholders = require('./src/placeholders');
 
 /** @type {{logger:ReturnType<typeof createLogger>, registry:PanelRegistry}|null} */
@@ -25,6 +27,8 @@ function activate(context) {
   context.subscriptions.push(events);
   logger.info(`activate: VS Code ${vscode.version}, extension ${context.extension.packageJSON.version}`);
   panels.register(context, services);
+  editorContext.register(context, services);
+  mcp.register(context, services);
   placeholders.register(context, services);
 }
 
